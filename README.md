@@ -2,6 +2,68 @@
 
 Run AutomationHQ TestBot executions from Jenkins and see pass/fail results directly in your pipeline.
 
+Already have Jenkins running? Skip to **[Step 1](#1-add-this-to-your-jenkinsfile)**. Otherwise, start with installing it below.
+
+---
+
+## 0. Install Jenkins
+
+Jenkins is a Java application — no Docker required, though Docker is also an option if you prefer it. Pick your OS:
+
+### macOS
+
+**Requires**: [Homebrew](https://brew.sh) and Java 17+ (check with `java -version`; install via `brew install openjdk@21` if missing).
+
+1. Install Jenkins:
+   ```bash
+   brew install jenkins-lts
+   ```
+2. Start it (runs in the background, persists across reboots):
+   ```bash
+   brew services start jenkins-lts
+   ```
+   To stop it later: `brew services stop jenkins-lts`. To restart: `brew services restart jenkins-lts`.
+3. Get the unlock key:
+   ```bash
+   cat ~/.jenkins/secrets/initialAdminPassword
+   ```
+   Copy this — you'll paste it into the browser in the next step.
+4. Open `http://localhost:8080` in your browser and continue with **"Complete the Setup Wizard"** below.
+
+**Alternative (Docker):**
+```bash
+docker run -d --name jenkins -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts-jdk17
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+### Windows
+
+1. Go to [jenkins.io/download](https://www.jenkins.io/download/) → **Windows** → download the `.msi` installer (LTS version).
+2. Run the downloaded `.msi` file.
+3. Follow the installer prompts:
+   - Choose an install directory (default is fine)
+   - It will prompt you to select a **Java (JVM) path** — if you don't have Java 17+ installed, install it first from [adoptium.net](https://adoptium.net) before continuing
+   - Choose the port (default `8080` is fine, unless something else is already using it)
+4. The installer sets Jenkins up as a **Windows Service** that starts automatically — once installation finishes, it opens `http://localhost:8080` in your browser automatically.
+5. If it doesn't open automatically, open `http://localhost:8080` yourself.
+6. The unlock key is shown directly on that first screen, along with the exact file path it was saved to (typically `C:\Program Files\Jenkins\secrets\initialAdminPassword`) — open that file in Notepad to copy it, or copy it straight from the Jenkins page if shown there.
+7. Continue with **"Complete the Setup Wizard"** below.
+
+To stop/start/restart Jenkins later on Windows: **Services** app (search for it in the Start menu) → find **Jenkins** → right-click → Stop/Start/Restart.
+
+### Complete the Setup Wizard (same on both platforms)
+
+1. Paste the unlock key → **Continue**.
+2. Click **Install suggested plugins** — wait for it to finish (this installs Pipeline, Git, and Credentials Binding automatically).
+3. Create your admin username, password, full name, and email → **Save and Continue**.
+4. Confirm the Jenkins URL (default is fine) → **Save and Finish** → **Start using Jenkins**.
+5. One plugin isn't in the "suggested" bundle and is required — install it now:
+   ```text
+   Manage Jenkins → Plugins → Available plugins → search "JUnit" → check it → Install
+   ```
+
+Jenkins is now installed and ready. Continue to Step 1 below.
+
 ---
 
 ## 1. Add This to Your `Jenkinsfile`
@@ -81,14 +143,14 @@ Manage Jenkins → Credentials → System → Global credentials → Add Credent
 
 ## 4. Confirm Required Plugins Are Installed
 
-Most Jenkins instances already have these (they're part of the standard "suggested plugins" set installed by default):
+If you followed **Step 0** above, this is already done. Otherwise, confirm your Jenkins has these four plugins:
 
-* **Pipeline** (`workflow-aggregator`)
-* **Git**
-* **Credentials Binding**
-* **JUnit**
+* **Pipeline** (`workflow-aggregator`) — part of the standard "suggested plugins" set
+* **Git** — part of the standard "suggested plugins" set
+* **Credentials Binding** — part of the standard "suggested plugins" set
+* **JUnit** — **not** included in "suggested plugins", install manually
 
-If your Jenkins is missing any of these, install them via `Manage Jenkins → Plugins`.
+Install any missing ones via `Manage Jenkins → Plugins → Available plugins`.
 
 ---
 

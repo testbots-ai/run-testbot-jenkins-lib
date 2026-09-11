@@ -22,7 +22,13 @@ Jenkins is a Java application — no Docker required, though Docker is also an o
    ```bash
    brew services start jenkins-lts
    ```
-   To stop it later: `brew services stop jenkins-lts`. To restart: `brew services restart jenkins-lts`.
+   Confirm it's actually running:
+   ```bash
+   brew services list
+   ```
+   You should see `jenkins-lts` with status `started`. It usually takes 15–30 seconds after this command before the web page is reachable — if `http://localhost:8080` doesn't load right away, wait a bit and refresh.
+
+   (Full stop/start/restart commands are also collected together in **[Step 7](#7-stop-jenkins-when-youre-done)** at the bottom of this doc, for when you're done using Jenkins.)
 3. Get the unlock key:
    ```bash
    cat ~/.jenkins/secrets/initialAdminPassword
@@ -49,7 +55,23 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 6. The unlock key is shown directly on that first screen, along with the exact file path it was saved to (typically `C:\Program Files\Jenkins\secrets\initialAdminPassword`) — open that file in Notepad to copy it, or copy it straight from the Jenkins page if shown there.
 7. Continue with **"Complete the Setup Wizard"** below.
 
-To stop/start/restart Jenkins later on Windows: **Services** app (search for it in the Start menu) → find **Jenkins** → right-click → Stop/Start/Restart.
+The Windows installer starts Jenkins for you automatically — you don't need to start it manually.
+
+If you'd rather use the command line instead of the Services app, open **PowerShell as Administrator** (right-click Start → **Windows PowerShell (Admin)** or **Terminal (Admin)**) and run:
+
+```powershell
+Start-Service Jenkins
+```
+
+Confirm it's running:
+
+```powershell
+Get-Service Jenkins
+```
+
+You should see `Status: Running`.
+
+(Full stop/start/restart commands — both GUI and command-line — are also collected together in **[Step 7](#7-stop-jenkins-when-youre-done)** at the bottom of this doc, for when you're done using Jenkins.)
 
 ### Complete the Setup Wizard (same on both platforms)
 
@@ -97,7 +119,7 @@ pipeline {
 
 That's the whole file. No extra setup files, no folder structure needed in your repo — the `library` line pulls everything in directly, no Jenkins-admin pre-configuration required.
 
-**Where to put it:** save this as a file named exactly `Jenkinsfile` (no file extension) at the **root** of your repository:
+**Exact name and location:** the file must be named exactly `Jenkinsfile` — capital **J**, no file extension (not `Jenkinsfile.txt` or `Jenkinsfile.groovy`) — and it must sit at the **root** of your repository, alongside your top-level folders like `src/`:
 
 ```text
 your-repo/
@@ -106,7 +128,28 @@ your-repo/
 └── ...
 ```
 
-See Step 5 below for how Jenkins actually picks this file up and runs it.
+**How to actually create it, step by step:**
+
+1. Open a terminal (or your code editor) in your project's repo folder.
+2. Create the file at the repo root:
+   ```bash
+   # macOS/Linux
+   touch Jenkinsfile
+   ```
+   ```powershell
+   # Windows (PowerShell)
+   New-Item Jenkinsfile
+   ```
+3. Open `Jenkinsfile` in any text editor (VS Code, Notepad, `nano`, etc.) and paste in the full pipeline script shown above exactly as-is.
+4. Save the file.
+5. Commit and push it to your repo, the same way you would any other file:
+   ```bash
+   git add Jenkinsfile
+   git commit -m "Add Jenkinsfile for TestBot"
+   git push
+   ```
+
+Jenkins doesn't need anything installed or configured in your repo beyond this one file — no `.jenkins/` folder, no extra config. Step 5 below covers how Jenkins actually finds and runs this file.
 
 ---
 
@@ -162,16 +205,19 @@ Once your `Jenkinsfile` is committed to your repo (Step 1), you need a Jenkins j
 
 This is the standard, maintainable setup — Jenkins pulls the `Jenkinsfile` straight from your repo every time, so it stays version-controlled alongside your code.
 
-1. Jenkins home page → **New Item**
-2. Enter a name (e.g. `run-testbot`), select **Pipeline**, click **OK**
-3. Scroll to the **Pipeline** section at the bottom
-4. **Definition**: change the dropdown to **Pipeline script from SCM**
-5. **SCM**: select **Git**
-6. **Repository URL**: your repo's git URL (e.g. `https://github.com/your-org/your-repo.git`)
-7. **Credentials**: add/select credentials here if your repo is private (not needed for a public repo)
-8. **Branch Specifier**: usually `*/main` (or whatever branch your `Jenkinsfile` is on)
-9. **Script Path**: leave as `Jenkinsfile` (this is the default — matches the filename from Step 1)
-10. Click **Save**
+1. On the Jenkins home page (`http://localhost:8080`), click **New Item** in the left sidebar.
+2. **Enter an item name**: this is just a label you'll see in the Jenkins dashboard — it doesn't need to match your repo name or anything else. A descriptive name like `run-testbot` is enough.
+3. Below the name field, select **Pipeline** from the list of project types, then click **OK** at the bottom.
+4. You're now on the job's configuration page. Scroll down to the **Pipeline** section at the very bottom.
+5. **Definition**: change the dropdown from "Pipeline script" to **Pipeline script from SCM**.
+6. New fields appear — **SCM**: select **Git** from the dropdown.
+7. **Repository URL**: paste your repo's git clone URL (e.g. `https://github.com/your-org/your-repo.git`) — this is the same repo you pushed the `Jenkinsfile` to in Step 1.
+8. **Credentials**: only needed if your repo is **private** — click **Add** → **Jenkins**, choose **Username with password** (or a personal access token as the password), fill in your Git host credentials, save, then select them from the dropdown. Skip this entirely for a public repo.
+9. **Branch Specifier**: leave as `*/main`, or change to match whatever branch your `Jenkinsfile` actually lives on (e.g. `*/master`, `*/develop`).
+10. **Script Path**: leave this as `Jenkinsfile` — it's the default value and matches the filename from Step 1 exactly. Only change this if you named your file differently or put it in a subfolder (not recommended).
+11. Scroll to the bottom and click **Save**.
+
+You're taken to the job's page — this is where you'll trigger runs and view results (see Step 6 below).
 
 ### Option B: Paste the script directly into Jenkins (quick test only)
 
@@ -186,19 +232,94 @@ Useful for a one-off test without needing a `Jenkinsfile` committed anywhere yet
 
 ### Run it
 
-```text
-Your Job → Build Now
-```
+1. Go to the job's page (Jenkins home page → click the job name, e.g. `run-testbot`).
+2. In the left sidebar, click **Build Now**.
+3. A new build number (e.g. `#1`) appears under **Build History** on the left — click it to open that specific run.
 
 ---
 
-## Where to See Results
+## 6. Where to See Results
 
-* **Console Output** — full readable pass/fail report, printed at the end of the run
-* **Test Result Trend** — pass/fail graph and per-script results, on the job page (from the `junit` step)
-* **Artifacts** — downloadable result files (`test-reports/junit.xml`, `results/execution-result.json`, `results/report.md`), on the build page
+Once a build finishes (or while it's still running), open that build number from **Build History**, then:
 
-The build shows **blue/green** if everything passed, **red** if anything failed.
+* **Console Output** (left sidebar on the build page) — the full live/readable log, including the final pass/fail report printed at the end of the run. This is the first place to look, especially while a build is still in progress.
+* **Test Result Trend / Test Result** (left sidebar on the build page, appears once the `junit` step has run) — a pass/fail graph and a breakdown per test script.
+* **Artifacts** (left sidebar on the build page, or a section directly on the build's summary page) — downloadable result files:
+  * `test-reports/junit.xml` — the raw JUnit report
+  * `results/execution-result.json` — the raw TestBot API result
+  * `results/report.md` — a human-readable Markdown summary
+
+On the job's main page, each build number in **Build History** is shown with a colored ball/icon: **blue** (or green, depending on your Jenkins theme) means everything passed, **red** means something failed. You can tell pass/fail at a glance without opening the build.
+
+---
+
+## 7. Stop Jenkins When You're Done
+
+Jenkins keeps running in the background (using CPU/memory and holding port `8080`) until you explicitly stop it. You don't need to stop it between runs — only when you're fully done for the session/day.
+
+### macOS
+
+* If you installed via **Homebrew**:
+  ```bash
+  brew services stop jenkins-lts
+  ```
+  Verify it stopped:
+  ```bash
+  brew services list
+  ```
+  `jenkins-lts` should now show status `none` or `stopped`.
+
+  To start it again later: `brew services start jenkins-lts`. To restart without stopping manually first: `brew services restart jenkins-lts`.
+
+* If you installed via **Docker**:
+  ```bash
+  docker stop jenkins
+  ```
+  To start it again later (reuses the same data, since it's stored in the `jenkins_home` volume): `docker start jenkins`.
+
+### Windows
+
+Jenkins runs as a **Windows Service**, so it keeps running in the background even after you log out — stop it explicitly. You can use either the Services app (GUI) or PowerShell (command line) — same effect either way.
+
+**Option A: Services app (GUI)**
+
+1. Open the **Services** app (press **Win**, type `Services`, press Enter).
+2. Scroll down and find **Jenkins** in the list.
+3. Right-click it → **Stop**.
+
+To start it again later: right-click **Jenkins** in the same list → **Start**. To make it stop starting automatically on every reboot: right-click → **Properties** → set **Startup type** to **Manual** → **OK**.
+
+**Option B: PowerShell (command line)**
+
+Open **PowerShell as Administrator** (right-click Start → **Windows PowerShell (Admin)** or **Terminal (Admin)**), same as in Step 0:
+
+```powershell
+Stop-Service Jenkins
+```
+
+Verify it stopped:
+
+```powershell
+Get-Service Jenkins
+```
+
+`Status` should now show `Stopped`.
+
+To start it again later:
+
+```powershell
+Start-Service Jenkins
+```
+
+To restart it (stop + start in one command):
+
+```powershell
+Restart-Service Jenkins
+```
+
+### How to confirm it's actually stopped
+
+Open `http://localhost:8080` in your browser — if Jenkins is stopped, the page will fail to load ("can't be reached" / connection refused) instead of showing the dashboard.
 
 ---
 

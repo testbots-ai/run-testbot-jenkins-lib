@@ -37,7 +37,6 @@ def call(Map config = [:]) {
 
     def scriptContent = libraryResource('org/testbotsai/run-testbot/run-testbot.sh')
     writeFile file: 'run-testbot.sh', text: scriptContent
-    sh 'chmod +x run-testbot.sh'
 
     withEnv([
         "JWT_TOKEN=${env.TESTBOT_JWT_TOKEN}",
@@ -45,6 +44,15 @@ def call(Map config = [:]) {
         "POLL_INTERVAL_SECONDS=${pollIntervalSeconds}",
         "POLL_TIMEOUT_MINUTES=${pollTimeoutMinutes}"
     ]) {
-        sh './run-testbot.sh'
+        if (isUnix()) {
+            sh 'chmod +x run-testbot.sh'
+            sh './run-testbot.sh'
+        } else {
+            // Windows agents have no native "sh" — the script is bash, so it's
+            // run via Git for Windows' bundled bash.exe instead (requires Git
+            // for Windows to be installed, which is already a prerequisite
+            // for the SCM checkout above). No chmod needed on Windows.
+            bat 'bash run-testbot.sh'
+        }
     }
 }

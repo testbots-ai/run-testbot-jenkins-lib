@@ -49,10 +49,24 @@ def call(Map config = [:]) {
             sh './run-testbot.sh'
         } else {
             // Windows agents have no native "sh" — the script is bash, so it's
-            // run via Git for Windows' bundled bash.exe instead (requires Git
-            // for Windows to be installed, which is already a prerequisite
-            // for the SCM checkout above). No chmod needed on Windows.
-            bat 'bash run-testbot.sh'
+            // run via Git for Windows' bundled bash.exe instead. Not always on
+            // PATH for the Jenkins Windows Service (services cache their PATH
+            // at startup, so it can be stale even after Git is installed), so
+            // this tries PATH first and falls back to the two standard Git
+            // for Windows install locations before giving up.
+            bat '''
+                where bash >nul 2>nul
+                if %ERRORLEVEL% EQU 0 (
+                    bash run-testbot.sh
+                ) else if exist "C:\\Program Files\\Git\\bin\\bash.exe" (
+                    "C:\\Program Files\\Git\\bin\\bash.exe" run-testbot.sh
+                ) else if exist "C:\\Program Files (x86)\\Git\\bin\\bash.exe" (
+                    "C:\\Program Files (x86)\\Git\\bin\\bash.exe" run-testbot.sh
+                ) else (
+                    echo ERROR: bash.exe not found. Install Git for Windows ^(includes Git Bash^), or add its "bin" folder to PATH and restart the Jenkins service.
+                    exit /b 1
+                )
+            '''
         }
     }
 }

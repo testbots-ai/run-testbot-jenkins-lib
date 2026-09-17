@@ -93,7 +93,7 @@ Jenkins is now installed and ready. Continue to Step 1 below.
 ## 1. Add This to Your `Jenkinsfile`
 
 ```groovy
-library identifier: 'run-testbot@1.0.1', retriever: modernSCM(
+library identifier: 'run-testbot@1.0.2', retriever: modernSCM(
     [$class: 'GitSCMSource', remote: 'https://github.com/testbots-ai/run-testbot-jenkins-lib.git']
 )
 
@@ -251,7 +251,20 @@ Once a build finishes (or while it's still running), open that build number from
   * `test-reports/junit.xml` — the raw JUnit report
   * `results/execution-result.json` — the raw TestBot API result
   * `results/report.md` — a human-readable Markdown summary
-* **Allure Report** — a richer, browsable HTML report, published directly by Jenkins itself (no separate hosting/setup needed, unlike GitHub/GitLab, and unlike Bitbucket which needs a manual local server). Look for an **"Allure Report"** link in the left sidebar, on both the build page and the job's main page — it opens right in the browser, served by Jenkins through the HTML Publisher plugin (Step 4).
+* **Allure Report** — a richer, browsable HTML report. Look for an **"Allure Report"** link in the left sidebar, on both the build page and the job's main page — on most Jenkins setups this opens right in the browser, served by Jenkins through the HTML Publisher plugin (Step 4).
+
+  **If that sidebar link shows only a "Zip" option with a blank report (nothing else):** this is a known quirk in some Jenkins setups — HTML Publisher's sidebar link opens a wrapper page (for the "Zip" button and tab navigation) whose own script sometimes fails to load the report into it, even though the report itself works fine. The **Console Output** for this step also prints a direct link straight to the report itself, bypassing that wrapper — look for a line like:
+  ```text
+  Allure Report: http://localhost:8080/job/<your-job>/<build-number>/Allure_20Report/index.html
+  ```
+  Open that instead.
+
+  **If even that direct link shows blank:** now it's a different, instance-wide issue — some Jenkins installs apply a restrictive default Content-Security-Policy to *all* HTML Publisher content, which blocks Allure's own JavaScript from running no matter which URL you use. Either fix it instance-wide (add the JVM option `-Dhudson.model.DirectoryBrowserSupport.CSP=` to how Jenkins is started, then restart Jenkins), or use the guaranteed fallback instead: this step also archives the report as a plain artifact, so from the build page's **Artifacts** section, download `allure-report/**`, unzip it, then:
+  ```bash
+  cd path/to/unzipped/allure-report
+  python3 -m http.server 8080
+  ```
+  and open `http://localhost:8080` in your browser (same reason and method as the Bitbucket version of this integration — Allure's report needs to be served over HTTP, not opened directly as a local file).
 
 On the job's main page, each build number in **Build History** is shown with a colored ball/icon: **blue** (or green, depending on your Jenkins theme) means everything passed, **red** means something failed. You can tell pass/fail at a glance without opening the build.
 
@@ -329,7 +342,7 @@ Open `http://localhost:8080` in your browser — if Jenkins is stopped, the page
 
 ## Keeping Up to Date
 
-This is pinned to a specific version (`run-testbot@1.0.1`), not a branch — so your pipeline never changes behavior unexpectedly. Whenever a new version is released, that's the **only line you need to change** — bump `1.0.1` to the new version (e.g. `1.0.2`) in your Jenkinsfile. Nothing else needs to change.
+This is pinned to a specific version (`run-testbot@1.0.2`), not a branch — so your pipeline never changes behavior unexpectedly. Whenever a new version is released, that's the **only line you need to change** — bump `1.0.2` to the new version (e.g. `1.0.3`) in your Jenkinsfile. Nothing else needs to change.
 
 ---
 

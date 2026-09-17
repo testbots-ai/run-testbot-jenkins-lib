@@ -78,6 +78,28 @@ def call(Map config = [:]) {
             reportFiles: 'index.html',
             reportName: 'Allure Report'
         ])
+
+        // The "Allure Report" sidebar link publishHTML creates points at
+        // HTML Publisher's own wrapper page (an iframe+tabs shell around the
+        // real report). On some Jenkins setups that wrapper's own inline
+        // script fails to load the report into its iframe — shows as a
+        // blank page with only a "Zip" link — even though the real report
+        // renders completely fine on its own. This prints a direct link
+        // straight to it, bypassing that wrapper entirely. "Allure_20Report"
+        // is HTML Publisher's fixed, deterministic escaping of the space in
+        // reportName above ("Allure Report" -> "Allure_20Report") — stable
+        // as long as reportName here doesn't change.
+        echo "Allure Report: ${env.BUILD_URL}Allure_20Report/index.html"
+
+        // Fallback to a plain downloadable artifact — some Jenkins setups
+        // apply a restrictive Content-Security-Policy to HTML Publisher's
+        // served reports that blocks Allure's own JS from running entirely
+        // (even the direct link above would then show blank), independent of
+        // this library. Archiving allure-report/** directly guarantees a way
+        // to view it regardless: download it, then open it via a local
+        // static server (see README) — the same method already used for the
+        // Bitbucket version of this integration.
+        archiveArtifacts allowEmptyArchive: true, artifacts: 'allure-report/**'
     }
 
     if (exitCode != 0) {

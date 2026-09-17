@@ -249,6 +249,79 @@ foreach ($suite in $Data.testSuiteResults) {
 Write-Host "Generated test-reports/junit.xml and results/report.md"
 
 Write-Host ""
+Write-Host "===== Generate Allure Report ====="
+
+$AllureOutDir = "allure-results"
+New-Item -ItemType Directory -Force -Path $AllureOutDir | Out-Null
+
+function Allure-Status([string]$resultStatus) {
+    if ($resultStatus -eq "PASSED") { return "passed" } else { return "failed" }
+}
+
+$NowMs = [long][double]::Parse((Get-Date -UFormat %s)) * 1000
+
+foreach ($ts in $Data.testSuiteResults) {
+    $suiteName = if ($ts.testSuiteName) { $ts.testSuiteName } else { "Suite" }
+    foreach ($script in $ts.testScriptResults) {
+        $scriptName = if ($script.testScriptName) { $script.testScriptName } else { "Test" }
+
+        $stepsList = @()
+        foreach ($iteration in $script.iterations) {
+            foreach ($step in $iteration.stepResults) {
+                $stepsList += @{
+                    name   = "$($step.sequence): $($step.testStepName)"
+                    status = Allure-Status $step.resultStatus
+                    stage  = "finished"
+                    start  = $NowMs
+                    stop   = $NowMs
+                }
+            }
+        }
+
+        $resultUuid = [guid]::NewGuid().ToString()
+        $result = @{
+            uuid      = $resultUuid
+            historyId = "${suiteName}::${scriptName}"
+            name      = $scriptName
+            status    = Allure-Status $script.resultStatus
+            stage     = "finished"
+            start     = $NowMs
+            stop      = $NowMs
+            labels    = @(
+                @{ name = "suite"; value = $suiteName },
+                @{ name = "framework"; value = "AutomationHQ TestBot" }
+            )
+            steps     = $stepsList
+        }
+
+        ($result | ConvertTo-Json -Depth 10 -Compress) | Set-Content -Path (Join-Path $AllureOutDir "$resultUuid-result.json") -Encoding UTF8
+    }
+}
+
+Write-Host "Generated Allure results in $AllureOutDir"
+
+# Jenkins agents are long-lived (unlike a fresh GitHub/GitLab runner each
+# time), so the Allure CLI is cached under the agent user's profile instead of
+# re-downloading it on every single build. Java is guaranteed present
+# already — Jenkins itself is a Java application, so this adds no new
+# prerequisite beyond what's already required to run Jenkins at all.
+$AllureVersion = "2.46.1"
+$AllureHome = Join-Path $env:USERPROFILE ".testbot-allure\allure-$AllureVersion"
+$AllureBat = Join-Path $AllureHome "bin\allure.bat"
+
+if (-not (Test-Path $AllureBat)) {
+    Write-Host "Downloading Allure CLI $AllureVersion (first run only, cached under $env:USERPROFILE\.testbot-allure)..."
+    $zipPath = Join-Path $env:TEMP "testbot-allure.zip"
+    Invoke-WebRequest -Uri "https://github.com/allure-framework/allure2/releases/download/$AllureVersion/allure-$AllureVersion.zip" -OutFile $zipPath
+    New-Item -ItemType Directory -Force -Path (Split-Path $AllureHome -Parent) | Out-Null
+    Expand-Archive -Path $zipPath -DestinationPath (Split-Path $AllureHome -Parent) -Force
+    Remove-Item $zipPath -Force
+}
+
+& $AllureBat generate allure-results --clean -o allure-report
+Write-Host "Generated allure-report/index.html"
+
+Write-Host ""
 Write-Host "===== TestBot Run Summary ====="
 Write-Host ""
 Write-Host "Execution ID : $ExecutionId"

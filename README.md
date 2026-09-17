@@ -79,9 +79,11 @@ You should see `Status: Running`.
 2. Click **Install suggested plugins** — wait for it to finish (this installs Pipeline, Git, and Credentials Binding automatically).
 3. Create your admin username, password, full name, and email → **Save and Continue**.
 4. Confirm the Jenkins URL (default is fine) → **Save and Finish** → **Start using Jenkins**.
-5. One plugin isn't in the "suggested" bundle and is required — install it now:
+5. Two plugins aren't in the "suggested" bundle and are required — install them now:
    ```text
-   Manage Jenkins → Plugins → Available plugins → search "JUnit" → check it → Install
+   Manage Jenkins → Plugins → Available plugins → search "JUnit" → check it
+   Manage Jenkins → Plugins → Available plugins → search "HTML Publisher" → check it
+   → Install
    ```
 
 Jenkins is now installed and ready. Continue to Step 1 below.
@@ -91,7 +93,7 @@ Jenkins is now installed and ready. Continue to Step 1 below.
 ## 1. Add This to Your `Jenkinsfile`
 
 ```groovy
-library identifier: 'run-testbot@1.0.0', retriever: modernSCM(
+library identifier: 'run-testbot@1.0.1', retriever: modernSCM(
     [$class: 'GitSCMSource', remote: 'https://github.com/testbots-ai/run-testbot-jenkins-lib.git']
 )
 
@@ -186,12 +188,13 @@ Manage Jenkins → Credentials → System → Global credentials → Add Credent
 
 ## 4. Confirm Required Plugins Are Installed
 
-If you followed **Step 0** above, this is already done. Otherwise, confirm your Jenkins has these four plugins:
+If you followed **Step 0** above, this is already done. Otherwise, confirm your Jenkins has these five plugins:
 
 * **Pipeline** (`workflow-aggregator`) — part of the standard "suggested plugins" set
 * **Git** — part of the standard "suggested plugins" set
 * **Credentials Binding** — part of the standard "suggested plugins" set
 * **JUnit** — **not** included in "suggested plugins", install manually
+* **HTML Publisher** — **not** included in "suggested plugins", install manually (needed for the Allure Report link — see Step 6)
 
 Install any missing ones via `Manage Jenkins → Plugins → Available plugins`.
 
@@ -248,6 +251,7 @@ Once a build finishes (or while it's still running), open that build number from
   * `test-reports/junit.xml` — the raw JUnit report
   * `results/execution-result.json` — the raw TestBot API result
   * `results/report.md` — a human-readable Markdown summary
+* **Allure Report** — a richer, browsable HTML report, published directly by Jenkins itself (no separate hosting/setup needed, unlike GitHub/GitLab, and unlike Bitbucket which needs a manual local server). Look for an **"Allure Report"** link in the left sidebar, on both the build page and the job's main page — it opens right in the browser, served by Jenkins through the HTML Publisher plugin (Step 4).
 
 On the job's main page, each build number in **Build History** is shown with a colored ball/icon: **blue** (or green, depending on your Jenkins theme) means everything passed, **red** means something failed. You can tell pass/fail at a glance without opening the build.
 
@@ -325,7 +329,7 @@ Open `http://localhost:8080` in your browser — if Jenkins is stopped, the page
 
 ## Keeping Up to Date
 
-This is pinned to a specific version (`run-testbot@1.0.0`), not a branch — so your pipeline never changes behavior unexpectedly. Whenever a new version is released, that's the **only line you need to change** — bump `1.0.0` to the new version (e.g. `1.0.1`) in your Jenkinsfile. Nothing else needs to change.
+This is pinned to a specific version (`run-testbot@1.0.1`), not a branch — so your pipeline never changes behavior unexpectedly. Whenever a new version is released, that's the **only line you need to change** — bump `1.0.1` to the new version (e.g. `1.0.2`) in your Jenkinsfile. Nothing else needs to change.
 
 ---
 
@@ -337,6 +341,7 @@ This is pinned to a specific version (`run-testbot@1.0.0`), not a branch — so 
 | `runTestBot: TEST_BOT_CONFIGURATION is not set` | Same as above, but for the `test-bot-configuration` credential |
 | `test_bot_configuration input is not valid JSON` (from the script output) | Make sure the credential's secret value is valid JSON, all on one line |
 | `No such DSL method 'junit'` or `'archiveArtifacts'` | The required plugin is missing — see Step 4 |
+| No "Allure Report" link on the build page | Install the **HTML Publisher** plugin (see Step 4), then run the job again — the link only appears on builds run after the plugin is installed |
 | Build times out | Raise `POLL_TIMEOUT_MINUTES` by passing it to the step: `runTestBot(pollTimeoutMinutes: '120')` |
 
 ---

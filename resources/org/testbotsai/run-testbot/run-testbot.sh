@@ -10,8 +10,11 @@
 # current workspace so the customer's Jenkinsfile can pick them up via
 # `junit 'test-reports/*.xml'` and `archiveArtifacts`.
 #
-# This is the same script (unchanged) already validated end-to-end against
-# a real AutomationHQ execution as the Bitbucket Pipe entrypoint.
+# The trigger/poll/fetch/JUnit+Markdown logic is unchanged from the version
+# already validated end-to-end against a real AutomationHQ execution as the
+# Bitbucket Pipe entrypoint. Allure report generation (below) was added on
+# top of that — requires curl, unzip, and a JRE on the agent (Jenkins itself
+# already requires a JRE to run, so this adds no new prerequisite).
 
 set -euo pipefail
 
@@ -239,6 +242,81 @@ for suite_r in data.get("testSuiteResults", []):
 Path("results/report.md").write_text("\n".join(md), encoding="utf-8")
 print("Generated test-reports/junit.xml and results/report.md")
 PY
+
+echo ""
+echo "===== Generate Allure Report ====="
+
+python3 <<'PY'
+import json
+import time
+import uuid
+from pathlib import Path
+
+json_file = Path("results/execution-result.json")
+with open(json_file, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+out_dir = Path("allure-results")
+out_dir.mkdir(exist_ok=True)
+
+now_ms = int(time.time() * 1000)
+
+def allure_status(result_status):
+    return "passed" if result_status == "PASSED" else "failed"
+
+for ts in data.get("testSuiteResults", []):
+    suite_name = ts.get("testSuiteName", "Suite")
+    for script in ts.get("testScriptResults", []):
+        script_name = script.get("testScriptName", "Test")
+
+        steps = []
+        for iteration in script.get("iterations", []):
+            for step in iteration.get("stepResults", []):
+                steps.append({
+                    "name": f"{step.get('sequence')}: {step.get('testStepName', 'Step')}",
+                    "status": allure_status(step.get("resultStatus")),
+                    "stage": "finished",
+                    "start": now_ms,
+                    "stop": now_ms,
+                })
+
+        result = {
+            "uuid": str(uuid.uuid4()),
+            "historyId": f"{suite_name}::{script_name}",
+            "name": script_name,
+            "status": allure_status(script.get("resultStatus")),
+            "stage": "finished",
+            "start": now_ms,
+            "stop": now_ms,
+            "labels": [
+                {"name": "suite", "value": suite_name},
+                {"name": "framework", "value": "AutomationHQ TestBot"},
+            ],
+            "steps": steps,
+        }
+
+        result_file = out_dir / f"{result['uuid']}-result.json"
+        result_file.write_text(json.dumps(result), encoding="utf-8")
+
+print(f"Generated Allure results in {out_dir}")
+PY
+
+# Jenkins agents are long-lived (unlike a fresh GitHub/GitLab runner each
+# time), so the Allure CLI is cached under the agent's home directory instead
+# of re-downloading it on every single build. Java is guaranteed present
+# already — Jenkins itself is a Java application, so this adds no new
+# prerequisite beyond what's already required to run Jenkins at all.
+ALLURE_VERSION="2.46.1"
+ALLURE_HOME="${HOME}/.testbot-allure/allure-${ALLURE_VERSION}"
+if [ ! -x "${ALLURE_HOME}/bin/allure" ]; then
+  echo "Downloading Allure CLI ${ALLURE_VERSION} (first run only, cached under ${HOME}/.testbot-allure)..."
+  mkdir -p "$(dirname "$ALLURE_HOME")"
+  curl -sSL -o /tmp/testbot-allure.zip "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.zip"
+  unzip -q -o /tmp/testbot-allure.zip -d "$(dirname "$ALLURE_HOME")"
+  rm -f /tmp/testbot-allure.zip
+fi
+"${ALLURE_HOME}/bin/allure" generate allure-results --clean -o allure-report
+echo "Generated allure-report/index.html"
 
 echo ""
 echo "===== TestBot Run Summary ====="

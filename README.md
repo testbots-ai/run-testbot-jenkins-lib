@@ -259,7 +259,28 @@ Once a build finishes (or while it's still running), open that build number from
   ```
   Open that instead.
 
-  **If even that direct link shows blank:** now it's a different, instance-wide issue — some Jenkins installs apply a restrictive default Content-Security-Policy to *all* HTML Publisher content, which blocks Allure's own JavaScript from running no matter which URL you use. Either fix it instance-wide (add the JVM option `-Dhudson.model.DirectoryBrowserSupport.CSP=` to how Jenkins is started, then restart Jenkins), or use the guaranteed fallback instead: this step also archives the report as a plain artifact, so from the build page's **Artifacts** section, download `allure-report/**`, unzip it, then:
+  **If even that direct link shows blank:** now it's a different, instance-wide issue — some Jenkins installs apply a restrictive default Content-Security-Policy to *all* HTML Publisher content, which blocks Allure's own JavaScript from running no matter which URL you use. Two options:
+
+  **Option A — fix it instance-wide** by adding the JVM option `-Dhudson.model.DirectoryBrowserSupport.CSP=` to how Jenkins is started, then restarting Jenkins:
+
+  * **macOS (Homebrew `jenkins-lts`):** Homebrew regenerates its service definition on every `brew services start`, so editing the plist directly doesn't stick — use `launchctl setenv` instead, which the JVM reads automatically regardless of how it's launched:
+    ```bash
+    launchctl setenv _JAVA_OPTIONS "-Dhudson.model.DirectoryBrowserSupport.CSP="
+    brew services restart jenkins-lts
+    ```
+    Note: `launchctl setenv` doesn't survive a reboot on its own — if this stops working after restarting your Mac, just run the `launchctl setenv` line again (a login-time LaunchAgent can automate this if it recurs often).
+
+  * **Windows (installed via the `.msi`, running as a Windows Service):** edit `C:\Program Files\Jenkins\jenkins.xml` (open as Administrator, e.g. `notepad "C:\Program Files\Jenkins\jenkins.xml"` from an elevated PowerShell) and add the flag to the `<arguments>` line — **it must go before `-jar`**, not after (anything after `-jar <file>` is passed to the app itself, not read as a JVM option, so it'd otherwise be silently ignored):
+    ```xml
+    <arguments>-Xrs -Xmx256m -Dhudson.lifecycle=hudson.lifecycle.WindowsServiceLifecycle -Dhudson.model.DirectoryBrowserSupport.CSP= -jar "C:\Program Files\Jenkins\jenkins.war" --httpPort=8080 --webroot="%ProgramData%\Jenkins\war"</arguments>
+    ```
+    Save, then restart the service from an elevated PowerShell/CMD:
+    ```powershell
+    net stop Jenkins
+    net start Jenkins
+    ```
+
+  **Option B — use the guaranteed fallback instead**, no Jenkins config changes needed: this step also archives the report as a plain artifact, so from the build page's **Artifacts** section, download `allure-report/**`, unzip it, then:
   ```bash
   cd path/to/unzipped/allure-report
   python3 -m http.server 8080
